@@ -1816,3 +1816,64 @@ func (x *Big) validate() {
 		panic(fmt.Sprintf("invalid form %s", x.form))
 	}
 }
+
+func (x *Big) FastString() string {
+	if x.isZero() {
+		return "0"
+	}
+	prec := x.Precision()
+	var b []byte
+	if x.isCompact() {
+		b = formatCompact(x.compact)
+	} else {
+		b = formatUnscaled(&x.unscaled)
+	}
+	exp := x.exp
+	if exp < 0 {
+		j := 0
+		for i := len(b) - 1; i >= 0; i-- {
+			if b[i] != '0' {
+				break
+			}
+			j += 1
+		}
+		if j > 0 {
+			b = b[:len(b)-j]
+			exp += j
+		}
+	}
+	const zeroRadix = "0."
+
+	f := &strings.Builder{}
+	f.Grow(len(b) + 4)
+	neg := x.Signbit()
+	if neg {
+		f.WriteByte('-')
+	}
+	switch radix := len(b) + exp; {
+	// log10(b) == scale, so immediately before b: 0.123456
+	case radix == 0:
+		f.WriteString(zeroRadix)
+		f.Write(b)
+
+	// log10(b) > scale, so somewhere inside b: 123.456
+	case radix > 0:
+		f.Write(b[:radix])
+		if radix < len(b) {
+			f.WriteByte('.')
+			f.Write(b[radix:])
+		}
+
+	// log10(b) < scale, so before p "0s" and before b: 0.00000123456
+	default:
+		f.WriteString(zeroRadix)
+		io.CopyN(f, zeroReader{}, -int64(radix))
+
+		end := len(b)
+		if prec < end {
+			end = prec
+		}
+		f.Write(b[:end])
+	}
+	return f.String()
+}
