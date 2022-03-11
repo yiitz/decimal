@@ -1832,7 +1832,7 @@ func (x *Big) FastString() string {
 	if exp < 0 {
 		j := 0
 		for i := len(b) - 1; i >= 0; i-- {
-			if b[i] != '0' {
+			if b[i] > '0' && b[i] <= '9' {
 				break
 			}
 			j += 1
